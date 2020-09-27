@@ -6,7 +6,7 @@ function boot() {
     fs.readFile(TOKEN_PATH, async (err, token) => {
         try {
             const { access_token } = JSON.parse(token);
-            const res = await listMessages(access_token);
+            const res = await getMessages(access_token);
         } catch (error) {
             console.log(error.data);
         }
@@ -66,9 +66,9 @@ async function sendMail(token) {
 async function getMessages(token) {
     const params = {
         // format: 'METADATA'
-        format: 'RAW'
+        // format: 'MINIMAL'
     }
-    const res = await api(HOST, '/me/messages/174625903fa6b6e6', 'GET', token, params);
+    const res = await api(HOST, '/me/messages/174a0ca3609cd768', 'GET', token, params);
     console.log(res.data);
     fs.writeFile('message.json', JSON.stringify(res.data), (err) => {
         if (err) return console.error(err);
