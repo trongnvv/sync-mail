@@ -5,7 +5,7 @@ module.exports = function (config, cb) {
     config = {};
     cb = config;
   }
-  let token = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkiOiJiOWY3NmYwOS01M2I0LTRiYmUtOWE2Ni0xYTY0YzM1MWQ4ZGEiLCJleHBpcmVzSW4iOjYwNDgwMCwidXNlcklkIjoiNWY1MDlmZThhNjEzZDgwMDA3Zjc2ZTExIiwiY29tcGFueUlkIjoiNWY1MGExMjJhNjEzZDgwMDA3Zjc2ZTcxIiwiaWF0IjoxNjAxMjc3MTMzfQ.F3QvcKjdQqGlARpgjPKha9J0LlziSa0-yZ04WqBFfAk';
+  let token = '';
   const headers = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
