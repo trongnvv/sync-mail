@@ -1,6 +1,9 @@
 
-const MailParser = require("mailparser").MailParser;
 const fs = require('fs');
+const { MailParser } = require("mailparser");
+
+const MainData = require("../model/MainData");
+const MessageModel = require("../model/Message");
 
 const openBox = (imap) => {
   return new Promise((resolve, reject) => {
@@ -45,7 +48,7 @@ const fetchDetail = (imap, events, results, isSearching) => {
     reject();
   });
   f.once('end', () => {
-    console.log('Done fetching all messages!');
+    // console.log('Done fetching all messages!');
   });
 }
 
@@ -61,7 +64,7 @@ const handleFetchDetail = (msg, events, isSearching) => {
     });
 
     stream.once('end', function () {
-      console.log('stream-end');
+      // console.log('stream-end');
     });
 
     parser.on('data', async data => {
@@ -108,9 +111,55 @@ const handleFetchDetail = (msg, events, isSearching) => {
   });
 }
 
+const searchArr = (from, to) => {
+  const arr = [];
+  for (let index = from; index <= to; index++) {
+    arr.push(index);
+  }
+  return arr;
+}
+
+const findUpdatedTo = async (uid) => {
+  const mess = await MessageModel.findOne({ uid });
+  if (mess) {
+    return await findUpdatedTo(uid + 1);
+  }
+  return uid;
+}
+
+const checkAndSetUidUpdated = async () => {
+  const numUidUpdated = await getUidUpdated();
+  const updatedTo = await findUpdatedTo(numUidUpdated);
+  await MainData.updateOne({}, { numUidUpdated: updatedTo }, { upsert: true, new: true });
+  return updatedTo;
+};
+
+const getUidUpdated = async () => {
+  const { numUidUpdated } = await MainData.findOne({});
+  return numUidUpdated || 0;
+};
+
+const saveMessage = async (data) => {
+  try {
+    const mess = await MessageModel.findOne({ uid: data.uid });
+    if (!mess) {
+      if (data.parentId) {
+        // todo send sync
+      }
+      await MessageModel.create({ ...data, type: "receive" });
+      await checkAndSetUidUpdated();
+    }
+  } catch (error) {
+    console.log('error', error);
+  }
+}
+
 module.exports = {
   openBox,
   closeBox,
   searchByParentId,
   fetchDetail,
+  checkAndSetUidUpdated,
+  searchArr,
+  saveMessage
 }

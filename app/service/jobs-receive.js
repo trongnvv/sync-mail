@@ -1,10 +1,17 @@
-require('dotenv').config();
-require('./db');
+
 const Imap = require('imap');
 const events = require('events');
 const eventEmitter = new events.EventEmitter();
-const MainData = require("./model/MainData");
-const MessageModel = require("./model/Message");
+const Queue = require('bull');
+const { delay } = require('../utils');
+
+const queueReadMail = new Queue('read-mail', {
+  redis: {
+    port: 6379,
+    host: '127.0.0.1',
+    // password: 'foobared'
+  }
+});
 
 const imap = new Imap({
   user: process.env.IMAP_USER,
@@ -14,12 +21,16 @@ const imap = new Imap({
   tls: true,
   tlsOptions: { servername: 'imap.gmail.com' }
 });
+
 const {
   searchByParentId,
   closeBox,
   openBox,
   fetchDetail,
-} = require('./handle-read-mail');
+  checkAndSetUidUpdated,
+  searchArr,
+  saveMessage
+} = require('./handle-receive-mail');
 
 let isReady = false;
 let numExist = 0;
@@ -68,75 +79,47 @@ imap.once('end', function () {
 
 imap.connect();
 
-const delay = (ms = 1000) => {
-  return new Promise(r => setTimeout(r, ms));
-}
-
-const searchArr = (from, to) => {
-  const arr = [];
-  for (let index = from; index <= to; index++) {
-    arr.push(index);
-  }
-  return arr;
-}
-
 const checkReady = async () => {
   if (isReady) return true;
   await delay(500);
   return checkReady();
-}
-
-const findUpdatedTo = async (uid) => {
-  const mess = await MessageModel.findOne({ uid });
-  if (mess) {
-    return await findUpdatedTo(uid + 1);
-  }
-  return uid;
-}
-
-const checkAndSetUidUpdated = async () => {
-  const numUidUpdated = await getUidUpdated();
-  const updatedTo = await findUpdatedTo(numUidUpdated);
-  await MainData.updateOne({}, { numUidUpdated: updatedTo }, { upsert: true, new: true });
-  return updatedTo;
 };
 
-const getUidUpdated = async () => {
-  const { numUidUpdated } = await MainData.findOne({});
-  return numUidUpdated || 0;
-};
-
-const saveMessage = async (data) => {
-  try {
-    const mess = await MessageModel.findOne({ uid: data.uid });
-    if (!mess) {
-      if (data.parentId) {
-        // todo send sync
-      }
-      await MessageModel.create({ ...data });
-      await checkAndSetUidUpdated();
-    }
-  } catch (error) {
-    console.log('error', error);
-  }
-}
-
-const run = async () => {
+const searchAllByRootID = async (messageId) => {
   await checkReady();
   // const messageId = '<c913eef6-0d4f-6fee-1ea4-83b1a7fbccfa@gmail.com>'
-  // await searchByParentId(imap, eventEmitter, messageId);
+  searchByParentId(imap, eventEmitter, messageId);
+};
+
+const addToQueue = async (data) => {
+  await queueReadMail.add(data);
+}
+
+(async () => {
+  await checkReady();
+
+  queueReadMail.process(async (job, done) => {
+    await saveMessage(job.data);
+    done();
+  });
+
+  queueReadMail.on('completed', job => {
+    console.log('Job completed', job.data.uid);
+  });
 
   eventEmitter.on('data-search', async (data) => {
     // console.log('data-search', data);
-    await saveMessage(data);
+    await addToQueue(data);
     searchByParentId(imap, eventEmitter, data.messageId);
   });
 
   eventEmitter.on('data', async (data) => {
     // console.log('data', data);
-    await saveMessage(data);
+    await addToQueue(data);
   });
 
-};
+})();
 
-run();
+module.exports = {
+  searchAllByRootID
+}

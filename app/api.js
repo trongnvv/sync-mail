@@ -1,25 +1,24 @@
 const axios = require('axios');
-
-module.exports = function (config, cb) {
-  if (typeof config === 'function') {
-    config = {};
-    cb = config;
-  }
-  let token = '';
+module.exports = async function ({
+  baseURL,
+  url,
+  params,
+  body,
+  method
+}) {
+  const token = '';
   const headers = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    Authorization: token
+    Authorization: 'Bearer ' + token
   };
-  const defaultConfig = {
-    baseURL: 'https://dev.fpt.work/api/v1/storage',
-    url: '/multiple-upload/files',
-    data: {},
-    method: 'post',
+  const config = {
+    baseURL,
+    url,
+    method,
+    data: body,
+    params,
     headers: headers
   };
-  config = Object.assign({}, defaultConfig, config);
-  axios(config)
-    .then(rs => cb(null, rs.data))
-    .catch(err => cb(err, null));
+  return await axios(config);
 }

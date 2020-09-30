@@ -6,7 +6,6 @@ const Message = new Schema(
   {
     uid: {
       type: Number,
-      default: 0,
     },
     attachments: {
       type: Array,
@@ -32,6 +31,13 @@ const Message = new Schema(
     fromUser: {
       type: String
     },
+    updated: { // pending, success, fail 
+      type: String,
+    },
+    type: { // send - receive
+      type: String,
+      required: true
+    }
   },
   { timestamps: true }
 );
