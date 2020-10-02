@@ -1,9 +1,10 @@
 
 const fs = require('fs');
 const { MailParser } = require("mailparser");
-
 const MainData = require("../model/MainData");
 const MessageModel = require("../model/Message");
+const callApi = require('../api');
+const { CUSTOMER_BACKEND } = require('../config');
 
 const openBox = (imap) => {
   return new Promise((resolve, reject) => {
@@ -130,6 +131,7 @@ const findUpdatedTo = async (uid) => {
 const checkAndSetUidUpdated = async () => {
   const numUidUpdated = await getUidUpdated();
   const updatedTo = await findUpdatedTo(numUidUpdated);
+  console.log('updatedTo', updatedTo);
   await MainData.updateOne({}, { numUidUpdated: updatedTo }, { upsert: true, new: true });
   return updatedTo;
 };
@@ -143,14 +145,105 @@ const saveMessage = async (data) => {
   try {
     const mess = await MessageModel.findOne({ uid: data.uid });
     if (!mess) {
-      if (data.parentId) {
-        // todo send sync
+      if (data.parentId && data.references) {
+        const rootMessageId = Array.isArray(data.references) && data.references.length > 0 ? data.references[0] : data.references;
+        console.log('rootMessageId', rootMessageId);
+        const sendMessage = await MessageModel.findOne({ rootMessageId, type: "send" });
+        if (sendMessage) {
+          await MessageModel.create({
+            ...data,
+            type: "receive",
+            updated: "pending",
+            currentCompanyId: sendMessage.currentCompanyId
+          });
+          // try-catch for request api
+          try {
+            console.log('receive-hook', data);
+            const res = await callApi({
+              baseURL: CUSTOMER_BACKEND,
+              body: {
+                ...data,
+                currentCompanyId: sendMessage.currentCompanyId
+              },
+              method: 'post',
+              url: '/email/hook-receive',
+            });
+            if (res.data && res.data.success) {
+              await MessageModel.updateOne({ messageId: data.messageId }, {
+                updated: "success",
+              });
+            } else {
+              await MessageModel.updateOne({ messageId: data.messageId }, {
+                updated: "fail",
+              });
+            }
+          } catch (error) {
+            console.log('receive', error.response);
+            await MessageModel.updateOne({ messageId: data.messageId }, {
+              updated: "fail",
+            });
+          }
+          // end try-catch for request api
+        } else {
+          await MessageModel.create({ ...data, type: "receive", updated: "success" });
+        }
+      } else {
+        await MessageModel.create({ ...data, type: "receive", updated: "success" });
       }
-      await MessageModel.create({ ...data, type: "receive" });
       await checkAndSetUidUpdated();
+    } else if (mess.updated === "fail") {
+      await callHookUpdateFail(mess);
     }
   } catch (error) {
     console.log('error', error);
+  }
+}
+
+const handleRequestReceiveUpdateFail = async () => {
+  try {
+    const messages = await MessageModel.find({
+      updated: "fail",
+      type: "receive",
+    }).lean();
+    if (messages && messages.length > 0) {
+      for (const message of messages) {
+        console.log('handleRequestReceiveUpdateFail-message', message);
+        await callHookUpdateFail(message);
+      }
+    }
+  } catch (error) {
+    console.log('handleRequestReceiveUpdateFail-error', error);
+  }
+}
+
+const callHookUpdateFail = async (data) => {
+  try {
+    await MessageModel.updateOne({ messageId: data.messageId }, {
+      updated: "pending",
+    });
+    const res = await callApi({
+      baseURL: CUSTOMER_BACKEND,
+      body: {
+        ...data,
+        currentCompanyId: data.currentCompanyId
+      },
+      method: 'post',
+      url: '/email/hook-receive',
+    });
+    if (res.data && res.data.success) {
+      await MessageModel.updateOne({ messageId: data.messageId }, {
+        updated: "success",
+      });
+    } else {
+      await MessageModel.updateOne({ messageId: data.messageId }, {
+        updated: "fail",
+      });
+    }
+  } catch (error) {
+    await MessageModel.updateOne({ messageId: data.messageId }, {
+      updated: "fail",
+    });
+    console.log('receive', error.response.data);
   }
 }
 
@@ -161,5 +254,6 @@ module.exports = {
   fetchDetail,
   checkAndSetUidUpdated,
   searchArr,
-  saveMessage
+  saveMessage,
+  handleRequestReceiveUpdateFail,
 }

@@ -10,13 +10,22 @@ const Message = new Schema(
     attachments: {
       type: Array,
     },
+    emailId: {
+      type: String
+    },
     references: {
       type: Schema.Types.Mixed,
     },
     date: {
       type: Date
     },
+    rootMessageId: {
+      type: String
+    },
     messageId: {
+      type: String
+    },
+    currentCompanyId: {
       type: String
     },
     parentId: {

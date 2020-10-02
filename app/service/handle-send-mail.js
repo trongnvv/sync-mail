@@ -6,7 +6,7 @@ const { isEmpty } = require("lodash");
 const { createTransport } = require("nodemailer");
 const callApi = require('../api');
 const MessageModel = require("../model/Message");
-
+const { CUSTOMER_BACKEND } = require('../config');
 const transporter = createTransport({
   service: 'gmail',
   auth: {
@@ -123,61 +123,124 @@ const renderPartFromFile = (
 
 const handleDataSuccess = async (data) => {
   try {
-    console.log('handleData', data);
+    console.log('send-handleDataSuccess', data);
     await MessageModel.create({
       date: new Date(),
+      emailId: data.emailId,
       attachments: data.attachment,
+      rootMessageId: !data.parentId ? data.messageId : undefined,
+      parentId: data.parentId || undefined,
       messageId: data.messageId,
       content: data.template,
       fromUser: data.sender,
       updated: "pending",
-      type: "send"
+      type: "send",
+      currentCompanyId: data.currentCompanyId
     });
-    const res = await callApi({
-      baseURL: '',
-      body: {
-        emailId: data.emailId,
-        sendStatus: "success",
-        messageId: data.messageId,
-      },
-      method: 'post',
-      url: data.hookAPI
-    });
-    if (res.data && res.data.success) {
-      await MessageModel.updateOne({ messageId: data.messageId }, {
-        updated: "success",
+    // try-catch request api update pending to fail
+    try {
+      const res = await callApi({
+        baseURL: CUSTOMER_BACKEND,
+        body: {
+          emailId: data.emailId,
+          sendStatus: "success",
+          messageId: data.messageId,
+          currentCompanyId: data.currentCompanyId
+        },
+        method: 'post',
+        url: '/email/hook-update',
       });
-    } else {
+      if (res.data && res.data.success) {
+        await MessageModel.updateOne({ messageId: data.messageId }, {
+          updated: "success",
+        });
+      } else {
+        await MessageModel.updateOne({ messageId: data.messageId }, {
+          updated: "fail",
+        });
+      }
+    } catch (error) {
+      console.log('send', error.response);
       await MessageModel.updateOne({ messageId: data.messageId }, {
         updated: "fail",
       });
     }
   } catch (error) {
-    await MessageModel.updateOne({ messageId: data.messageId }, {
-      updated: "fail",
-    });
-    console.log('handleDataSuccess-error', error.response);
+    console.log('send-handleDataSuccess-error', error);
   }
 }
 
 const handleDataFail = async (data) => {
+  console.log('send-handleDataFail', data);
   try {
-    const res = await callApi({
-      baseURL: 'http://fpt.works/api/v1/customer',
+    await callApi({
+      baseURL: CUSTOMER_BACKEND,
       body: {
         emailId: data.emailId,
         sendStatus: "fail",
+        currentCompanyId: data.currentCompanyId
       },
       method: 'post',
-      url: data.hookAPI
+      url: '/email/hook-update',
     });
   } catch (error) {
-    
+    console.log('send-handleDataFail-ereor', error);
+  }
+}
+
+const handleRequestSendUpdateFail = async () => {
+  try {
+    const messages = await MessageModel.find({
+      updated: "fail",
+      type: "send",
+    });
+    if (messages && messages.length > 0) {
+      for (const message of messages) {
+        console.log('handleRequestSendUpdateFail-message', message);
+        callHookUpdateFail(message);
+      }
+    }
+  } catch (error) {
+    console.log('send-handleDataSuccess-error', error);
+  }
+}
+
+const callHookUpdateFail = async (message) => {
+  try {
+    await MessageModel.updateOne({ messageId: message.messageId }, {
+      updated: "pending",
+    });
+    const res = await callApi({
+      baseURL: CUSTOMER_BACKEND,
+      body: {
+        emailId: message.emailId,
+        sendStatus: "success",
+        messageId: message.messageId,
+        currentCompanyId: message.currentCompanyId
+      },
+      method: 'post',
+      url: '/email/hook-update',
+    });
+    if (res.data && res.data.success) {
+      await MessageModel.updateOne({ messageId: message.messageId }, {
+        updated: "success",
+      });
+    } else {
+      return await MessageModel.updateOne({ messageId: message.messageId }, {
+        updated: "fail",
+      });
+    }
+  } catch (error) {
+    console.log('send', error.response);
+    return await MessageModel.updateOne({ messageId: message.messageId }, {
+      updated: "fail",
+    });
   }
 }
 
 module.exports = {
   sendEmail,
   handleDataSuccess,
-  handleDataFail
+  handleDataFail,
+  handleRequestSendUpdateFail
 };

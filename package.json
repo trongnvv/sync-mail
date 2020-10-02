@@ -11,15 +11,19 @@
   "dependencies": {
     "axios": "^0.20.0",
     "bluebird": "^3.7.2",
+    "bull": "^3.18.0",
     "dotenv": "^8.2.0",
     "form-data": "^3.0.0",
     "googleapis": "^39.2.0",
+    "hogan.js": "^3.0.2",
     "imap": "^0.8.19",
     "imap-notify": "^1.0.0",
     "imap-simple": "^5.0.0",
+    "kafkajs": "^1.14.0",
     "mail-notifier": "^0.5.0",
     "mailparser": "^3.0.0",
     "mongoose": "^5.10.7",
-    "nodemailer": "^6.4.11"
+    "nodemailer": "^6.4.11",
+    "striptags": "^3.1.1"
   }
 }

@@ -1,6 +1,11 @@
 const { Kafka } = require('kafkajs');
 const { isEmpty } = require('lodash');
-const { sendEmail, handleDataSuccess, handleDataFail } = require('./handle-send-mail');
+const {
+  sendEmail,
+  handleDataSuccess,
+  handleDataFail,
+  handleRequestSendUpdateFail
+} = require('../service/handle-send-mail');
 
 const kafka = new Kafka({
   clientId: 'my-app',
@@ -19,10 +24,13 @@ module.exports = async function () {
     await consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
         const content = JSON.parse(message.value.toString());
+        // re-update fail
+        handleRequestSendUpdateFail();
         if (isEmpty(content.email)) {
           console.log('Error format data mail!')
           return;
         }
+        console.log('eachMessage', content);
         try {
           const res = await sendEmail({
             email: content.email,
@@ -32,7 +40,7 @@ module.exports = async function () {
             bcc: content.bcc && content.bcc,
             cc: content.cc && content.cc,
             attachment: content.attachment && content.attachment,
-            messageId: content.messageId && content.messageId
+            messageId: content.messageId && content.messageId,
           }, (err, result) => {
             if (err) {
               console.log("TCL: err", err)
@@ -40,9 +48,14 @@ module.exports = async function () {
             console.log(result);
           });
 
-          await handleDataSuccess({ ...content, messageId: res.messageId });
+          await handleDataSuccess({
+            ...content,
+            from: content.sender,
+            parentId: content.messageId && content.messageId,
+            messageId: res.messageId
+          });
         } catch (error) {
-          await handleDataFail(content);
+          await handleDataFail({ ...content, from: content.sender });
           console.log('eachMessage-error', error);
         }
       }

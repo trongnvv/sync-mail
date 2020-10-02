@@ -1,4 +1,4 @@
 require('dotenv').config();
 require('./db');
-require('./service/jobs-send')();
-const { searchAllByRootID } = require('./service/jobs-receive');
+require('./jobs/jobs-send')();
+const { searchAllByRootID } = require('./jobs/jobs-receive');

@@ -29,19 +29,22 @@ const {
   fetchDetail,
   checkAndSetUidUpdated,
   searchArr,
-  saveMessage
-} = require('./handle-receive-mail');
+  saveMessage,
+  handleRequestReceiveUpdateFail
+} = require('../service/handle-receive-mail');
 
 let isReady = false;
 let numExist = 0;
 
 imap.once('ready', async () => {
   numExist = await openBox(imap);
+  handleRequestReceiveUpdateFail();
   isReady = true;
 });
 
 imap.on('mail', async (numNewMsgs) => {
   if (numExist !== 0) {
+    // receive
     const arr = searchArr(numExist + 1, numExist + numNewMsgs);
     numExist += numNewMsgs;
     if (arr.length > 0) {
@@ -49,7 +52,8 @@ imap.on('mail', async (numNewMsgs) => {
       fetchDetail(imap, eventEmitter, arr);
     }
   } else {
-    await checkReady();
+    // init - check unset
+    await checkReady(); // numExist > 0
     const uidUpdated = await checkAndSetUidUpdated();
     console.log('uidUpdated', uidUpdated);
     const arr = searchArr(uidUpdated, numExist);
