@@ -25,12 +25,13 @@ module.exports = async function () {
       eachMessage: async ({ topic, partition, message }) => {
         const content = JSON.parse(message.value.toString());
         // re-update fail
-        handleRequestSendUpdateFail();
         if (isEmpty(content.email)) {
           console.log('Error format data mail!')
           return;
         }
         console.log('eachMessage', content);
+        if (content.type === 'sync-mail' && content.service === 'CUSTOMER')
+          handleRequestSendUpdateFail();
         try {
           const res = await sendEmail({
             email: content.email,
@@ -48,14 +49,15 @@ module.exports = async function () {
             console.log(result);
           });
 
-          await handleDataSuccess({
-            ...content,
-            from: content.sender,
-            parentId: content.messageId && content.messageId,
-            messageId: res.messageId
-          });
+          if (content.type === 'sync-mail' && content.service === 'CUSTOMER')
+            await handleDataSuccess({
+              ...content,
+              from: content.sender,
+              parentId: content.messageId && content.messageId,
+              messageId: res.messageId
+            });
         } catch (error) {
-          await handleDataFail({ ...content, from: content.sender });
+          if (content.type === 'sync-mail' && content.service === 'CUSTOMER') await handleDataFail({ ...content, from: content.sender });
           console.log('eachMessage-error', error);
         }
       }

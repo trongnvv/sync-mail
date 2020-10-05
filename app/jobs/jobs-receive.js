@@ -108,7 +108,7 @@ const addToQueue = async (data) => {
   });
 
   queueReadMail.on('completed', job => {
-    console.log('Job completed', job.data.uid);
+    console.log('Job completed', job.data.uid, job.data.from);
   });
 
   eventEmitter.on('data-search', async (data) => {

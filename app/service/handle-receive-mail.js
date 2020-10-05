@@ -148,13 +148,15 @@ const saveMessage = async (data) => {
       if (data.parentId && data.references) {
         const rootMessageId = Array.isArray(data.references) && data.references.length > 0 ? data.references[0] : data.references;
         console.log('rootMessageId', rootMessageId);
-        const sendMessage = await MessageModel.findOne({ rootMessageId, type: "send" });
-        if (sendMessage) {
+        const rootMessage = await MessageModel.findOne({ messageId: rootMessageId, type: "send" });
+        console.log('rootMessage', rootMessage);
+        if (rootMessage) {
           await MessageModel.create({
             ...data,
             type: "receive",
             updated: "pending",
-            currentCompanyId: sendMessage.currentCompanyId
+            rootMessageId,
+            currentCompanyId: rootMessage.currentCompanyId
           });
           // try-catch for request api
           try {
@@ -163,7 +165,8 @@ const saveMessage = async (data) => {
               baseURL: CUSTOMER_BACKEND,
               body: {
                 ...data,
-                currentCompanyId: sendMessage.currentCompanyId
+                rootMessageId,
+                currentCompanyId: rootMessage.currentCompanyId
               },
               method: 'post',
               url: '/email/hook-receive',
