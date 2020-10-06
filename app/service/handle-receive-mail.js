@@ -1,10 +1,15 @@
 
 const fs = require('fs');
 const { MailParser } = require("mailparser");
+
 const MainData = require("../model/MainData");
 const MessageModel = require("../model/Message");
-const callApi = require('../api');
+const FormData = require('form-data');
+
 const { CUSTOMER_BACKEND } = require('../config');
+
+const callApi = require('../utils/api');
+const uploadFile = require('../utils/uploadFile');
 
 const openBox = (imap) => {
   return new Promise((resolve, reject) => {
@@ -73,16 +78,19 @@ const handleFetchDetail = (msg, events, isSearching) => {
         params.content = data.html;
       } else if (data.type === 'attachment') {
         let dir = './download/' + new Date().getTime() + '_' + data.filename;
+
         const writeStream = fs.createWriteStream(dir);
         data.content.pipe(writeStream);
         data.content.on('end', async () => {
-          // todo file
+
           params.attachments.push({
+            file: data.filename,
+            name: data.filename,
             filename: data.filename,
             path: dir
           });
 
-          fs.unlinkSync(dir);
+          // fs.unlinkSync(dir);
           data.release();
         });
       }
@@ -128,12 +136,11 @@ const findUpdatedTo = async (uid) => {
   return uid;
 }
 
-const checkAndSetUidUpdated = async () => {
+const checkAndSetUidUpdated = async (uid = 0) => {
   const numUidUpdated = await getUidUpdated();
-  const updatedTo = await findUpdatedTo(numUidUpdated);
-  console.log('updatedTo', updatedTo);
-  await MainData.updateOne({}, { numUidUpdated: updatedTo }, { upsert: true, new: true });
-  return updatedTo;
+  // const updatedTo = await findUpdatedTo(numUidUpdated);
+  await MainData.updateOne({}, { numUidUpdated: numUidUpdated > uid ? numUidUpdated : uid }, { upsert: true, new: true });
+  return numUidUpdated;
 };
 
 const getUidUpdated = async () => {
@@ -151,12 +158,17 @@ const saveMessage = async (data) => {
         const rootMessage = await MessageModel.findOne({ messageId: rootMessageId, type: "send" });
         console.log('rootMessage', rootMessage);
         if (rootMessage) {
+          // convert data attachment  
+          data = await convertDataAttachments(data, rootMessage);
+          console.log('convertDataAttachments', data);
           await MessageModel.create({
             ...data,
             type: "receive",
             updated: "pending",
             rootMessageId,
-            currentCompanyId: rootMessage.currentCompanyId
+            currentCompanyId: rootMessage.currentCompanyId,
+            organizationId: rootMessage.organizationId,
+            userId: rootMessage.userId
           });
           // try-catch for request api
           try {
@@ -193,13 +205,61 @@ const saveMessage = async (data) => {
       } else {
         await MessageModel.create({ ...data, type: "receive", updated: "success" });
       }
-      await checkAndSetUidUpdated();
+      await checkAndSetUidUpdated(data.uid);
     } else if (mess.updated === "fail") {
       await callHookUpdateFail(mess);
     }
   } catch (error) {
     console.log('error', error);
   }
+}
+
+const convertDataAttachments = async (data, rootMessage) => {
+  if (
+    data &&
+    data.attachments &&
+    data.attachments.length > 0
+  ) {
+
+    try {
+      if (
+        rootMessage.userId &&
+        rootMessage.currentCompanyId &&
+        rootMessage.organizationId
+      ) {
+        const form = new FormData();
+        for (let i = 0; i < data.attachments.length; i++) {
+          let ele = data.attachments[i];
+          form.append('uuId', rootMessage.userId);
+          form.append('cpnId', rootMessage.currentCompanyId);
+          form.append('orgId', rootMessage.organizationId);
+          form.append('files', fs.readFileSync(ele.path), { filename: ele.filename });
+        }
+        const res = await uploadFile({ form });
+        if (res.data && res.data.success) {
+          data.attachments.map(ele => {
+            const rs = res.data.results.find(f => f.originalFileName === ele.filename);
+            if (rs) {
+              console.log('delete', ele.path);
+              fs.unlinkSync(ele.path);
+              ele.id = rs._id;
+              ele.path = rs.url;
+              ele.url = rs.url;
+            }
+            ele.success = !!rs;
+          })
+        }
+      } else {
+        throw new Error(rootMessage);
+      }
+    } catch (error) {
+      console.log('error', error);
+      data.attachments.map(ele => {
+        ele.success = false;
+      })
+    }
+  }
+  return data;
 }
 
 const handleRequestReceiveUpdateFail = async () => {
@@ -258,5 +318,6 @@ module.exports = {
   checkAndSetUidUpdated,
   searchArr,
   saveMessage,
+  getUidUpdated,
   handleRequestReceiveUpdateFail,
 }

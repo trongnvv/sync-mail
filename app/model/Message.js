@@ -28,6 +28,12 @@ const Message = new Schema(
     currentCompanyId: {
       type: String
     },
+    organizationId: {
+      type: String
+    },
+    userId: {
+      type: String
+    },
     parentId: {
       type: String
     },

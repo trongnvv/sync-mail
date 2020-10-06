@@ -4,7 +4,7 @@ const hogan = require("hogan.js");
 const striptags = require("striptags");
 const { isEmpty } = require("lodash");
 const { createTransport } = require("nodemailer");
-const callApi = require('../api');
+const callApi = require('../utils/api');
 const MessageModel = require("../model/Message");
 const { CUSTOMER_BACKEND } = require('../config');
 const transporter = createTransport({
@@ -135,7 +135,9 @@ const handleDataSuccess = async (data) => {
       fromUser: data.sender,
       updated: "pending",
       type: "send",
-      currentCompanyId: data.currentCompanyId
+      currentCompanyId: data.currentCompanyId,
+      organizationId: data.organizationId,
+      userId: data.userId,
     });
     // try-catch request api update pending to fail
     try {

@@ -28,6 +28,7 @@ const {
   openBox,
   fetchDetail,
   checkAndSetUidUpdated,
+  getUidUpdated,
   searchArr,
   saveMessage,
   handleRequestReceiveUpdateFail
@@ -54,12 +55,13 @@ imap.on('mail', async (numNewMsgs) => {
   } else {
     // init - check unset
     await checkReady(); // numExist > 0
-    const uidUpdated = await checkAndSetUidUpdated();
-    console.log('uidUpdated', uidUpdated);
-    const arr = searchArr(uidUpdated, numExist);
-    if (arr.length > 0) {
-      console.log('fetchDetail', arr);
-      fetchDetail(imap, eventEmitter, arr);
+    const uidUpdated = await getUidUpdated();
+    if(uidUpdated + 1 <= numExist){
+      const arr = searchArr(uidUpdated + 1, numExist);
+      if (arr.length > 0) {
+        console.log('fetchDetail', arr);
+        fetchDetail(imap, eventEmitter, arr);
+      }
     }
   }
 });
@@ -91,7 +93,6 @@ const checkReady = async () => {
 
 const searchAllByRootID = async (messageId) => {
   await checkReady();
-  // const messageId = '<c913eef6-0d4f-6fee-1ea4-83b1a7fbccfa@gmail.com>'
   searchByParentId(imap, eventEmitter, messageId);
 };
 
