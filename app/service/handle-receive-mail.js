@@ -230,18 +230,18 @@ const convertDataAttachments = async (data, rootMessage) => {
         const form = new FormData();
         for (let i = 0; i < data.attachments.length; i++) {
           let ele = data.attachments[i];
-          form.append('uuId', rootMessage.userId);
-          form.append('cpnId', rootMessage.currentCompanyId);
-          form.append('orgId', rootMessage.organizationId);
+          form.append('userId', rootMessage.userId);
+          form.append('currentCompanyId', rootMessage.currentCompanyId);
+          form.append('currentOrganizationId', rootMessage.organizationId);
           form.append('files', fs.readFileSync(ele.path), { filename: ele.filename });
         }
         const res = await uploadFile({ form });
         if (res.data && res.data.success) {
           data.attachments.map(ele => {
             const rs = res.data.results.find(f => f.originalFileName === ele.filename);
+            fs.unlinkSync(ele.path);
             if (rs) {
               console.log('delete', ele.path);
-              fs.unlinkSync(ele.path);
               ele.id = rs._id;
               ele.path = rs.url;
               ele.url = rs.url;
@@ -255,6 +255,7 @@ const convertDataAttachments = async (data, rootMessage) => {
     } catch (error) {
       console.log('error', error);
       data.attachments.map(ele => {
+        fs.unlinkSync(ele.path);
         ele.success = false;
       })
     }

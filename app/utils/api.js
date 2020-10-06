@@ -18,7 +18,11 @@ module.exports = async function ({
     method,
     data: body,
     params,
-    headers: headers
+    headers: headers,
+    auth: {
+      username: 'fwork',
+      password: 'Fwork@123'
+    }
   };
   return await axios(config);
 }
