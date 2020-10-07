@@ -14,7 +14,7 @@ const Message = new Schema(
       type: String
     },
     references: {
-      type: Schema.Types.Mixed,
+      type: Array,
     },
     date: {
       type: Date

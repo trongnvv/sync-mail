@@ -26,6 +26,7 @@ module.exports = async function () {
         const content = JSON.parse(message.value.toString());
         // re-update fail
         if (isEmpty(content.email)) {
+          if (content.type === 'sync-mail' && content.service === 'CUSTOMER') await handleDataFail({ ...content });
           console.log('Error format data mail!')
           return;
         }
@@ -37,11 +38,13 @@ module.exports = async function () {
             email: content.email,
             subject: content.subject,
             template: content.template,
+            from: content.from,
             sender: content.sender && content.sender,
             bcc: content.bcc && content.bcc,
             cc: content.cc && content.cc,
             attachment: content.attachment && content.attachment,
-            messageId: content.messageId && content.messageId,
+            inReplyTo: content.inReplyTo && content.inReplyTo,
+            references: content.references && content.references
           }, (err, result) => {
             if (err) {
               console.log("TCL: err", err)
@@ -49,15 +52,15 @@ module.exports = async function () {
             console.log(result);
           });
 
+          console.log('res-send', res);
           if (content.type === 'sync-mail' && content.service === 'CUSTOMER')
             await handleDataSuccess({
               ...content,
-              from: content.sender,
-              parentId: content.messageId && content.messageId,
+              parentId: content.inReplyTo && content.inReplyTo,
               messageId: res.messageId
             });
         } catch (error) {
-          if (content.type === 'sync-mail' && content.service === 'CUSTOMER') await handleDataFail({ ...content, from: content.sender });
+          if (content.type === 'sync-mail' && content.service === 'CUSTOMER') await handleDataFail({ ...content });
           console.log('eachMessage-error', error);
         }
       }

@@ -163,6 +163,7 @@ const saveMessage = async (data) => {
           console.log('convertDataAttachments', data);
           await MessageModel.create({
             ...data,
+            references: data.references ? (Array.isArray(data.references) > 0 ? data.references : [data.references]) : [],
             type: "receive",
             updated: "pending",
             rootMessageId,

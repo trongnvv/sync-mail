@@ -24,7 +24,7 @@ transporter.verify(function (error, success) {
 });
 
 const sendEmail = (
-  { template, subject, email, data, sender, cc, attachment, messageId },
+  { template, subject, email, data, sender, from, cc, attachment, inReplyTo, references },
   extra
 ) => {
   let __path = join(__dirname, "templates");
@@ -58,7 +58,7 @@ const sendEmail = (
 
   const dataPost = {
     from: sender
-      ? `${sender} <trongnv.work@gmail.com>`
+      ? `${sender} <${from}>`
       : "TRONGNV <trongnv.work@gmail.com>",
     to: email,
     subject,
@@ -75,8 +75,12 @@ const sendEmail = (
     dataPost.attachments = attachment;
   }
 
-  if (messageId) {
-    dataPost.messageId = messageId;
+  if (inReplyTo) {
+    dataPost.inReplyTo = inReplyTo;
+  }
+
+  if (references) {
+    dataPost.references = references;
   }
 
   return new Promise((resolve, reject) => {
